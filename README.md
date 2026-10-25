@@ -4,11 +4,26 @@ A Dynamic Island for your Mac's notch: live activities from any script, Claude C
 
 On a Mac without a notch (or an external display), it shows as a pill in the middle of the menu bar, only when there's something to show. Hover over the notch to expand it.
 
-## Build & install
+## Install
+
+**From a release:** download `DynamicNotch-x.y.z.zip` from [Releases](https://github.com/smanke-org/DynamicNotch/releases), unzip it, and move `DynamicNotch.app` to Applications. The app isn't notarized, so macOS will block the first launch. Clear the download flag once:
 
 ```bash
-./build.sh             # builds build/DynamicNotch.app
-./build.sh --install   # copies to ~/Applications, links ~/.local/bin/notch, launches it
+xattr -dr com.apple.quarantine /Applications/DynamicNotch.app
+```
+
+To get the `notch` command:
+
+```bash
+ln -sf /Applications/DynamicNotch.app/Contents/MacOS/notch ~/.local/bin/notch
+```
+
+**From source:**
+
+```bash
+./build.sh               # builds build/DynamicNotch.app
+./build.sh --install     # copies to ~/Applications, links ~/.local/bin/notch, launches it
+./build.sh --universal   # Apple Silicon + Intel build, zipped for a release (needs Xcode)
 ```
 
 Needs macOS 14+. If Xcode's license hasn't been accepted, the build falls back to the Command Line Tools.

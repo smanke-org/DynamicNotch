@@ -2,6 +2,7 @@
 # Builds build/DynamicNotch.app (with the `notch` CLI inside it).
 #   ./build.sh            release build
 #   ./build.sh --install  also copy to ~/Applications and link ~/.local/bin/notch
+#   ./build.sh --universal  Apple Silicon + Intel binary (needs Xcode), zipped for release
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -10,8 +11,11 @@ if ! swift --version >/dev/null 2>&1 && [ -d /Library/Developer/CommandLineTools
   export DEVELOPER_DIR=/Library/Developer/CommandLineTools
 fi
 
-swift build -c release
-BIN="$(swift build -c release --show-bin-path)"
+ARCH_FLAGS=()
+[[ "${1:-}" == "--universal" ]] && ARCH_FLAGS=(--arch arm64 --arch x86_64)
+
+swift build -c release ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
+BIN="$(swift build -c release ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --show-bin-path)"
 
 APP=build/DynamicNotch.app
 rm -rf "$APP"
@@ -21,6 +25,12 @@ cp "$BIN/DynamicNotch" "$BIN/notch" "$APP/Contents/MacOS/"
 codesign --force --sign - "$APP/Contents/MacOS/notch"
 codesign --force --sign - "$APP"
 echo "Built $APP"
+
+if [[ "${1:-}" == "--universal" ]]; then
+  VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" Resources/Info.plist)
+  ditto -c -k --keepParent "$APP" "build/DynamicNotch-$VERSION.zip"
+  echo "Zipped build/DynamicNotch-$VERSION.zip"
+fi
 
 if [[ "${1:-}" == "--install" ]]; then
   DEST="$HOME/Applications/DynamicNotch.app"
