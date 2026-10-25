@@ -44,6 +44,10 @@ final class HubStore: ObservableObject {
     @Published private(set) var activities: [Activity] = []
     @Published private(set) var agents: [AgentSession] = []
     @Published private(set) var permissions: [PendingPermission] = []
+    /// Bumped when something starts needing you, so the notch can flash its edge orange.
+    @Published private(set) var attentionPulse = 0
+    /// Bumped when a shown activity fails, so the notch can shake.
+    @Published private(set) var failurePulse = 0
 
     /// Asks the notch to pop open briefly (or until resolved, for permissions).
     var onPeek: ((TimeInterval) -> Void)?
@@ -111,6 +115,7 @@ final class HubStore: ObservableObject {
                 if a.state == .success { a.progress = 1 }
                 a.visible = true
                 activities[i] = a
+                if a.state == .failure { failurePulse += 1 }
                 onPeek?(3.5)
                 return
             }
@@ -149,7 +154,10 @@ final class HubStore: ObservableObject {
             visible: visible,
             pid: msg.pid
         ))
-        if visible { onPeek?(state == .running ? 2.5 : 3.5) }
+        if visible {
+            if state == .failure { failurePulse += 1 }
+            onPeek?(state == .running ? 2.5 : 3.5)
+        }
     }
 
     private func remove(_ id: String) {
@@ -177,12 +185,13 @@ final class HubStore: ObservableObject {
             if old != msg.state {
                 agents[i].since = Date()
                 // Surface the moments that matter: needs you, or just finished.
+                if msg.state == .waiting { attentionPulse += 1 }
                 if msg.state == .waiting || (old == .working && msg.state == .idle) { onPeek?(4) }
             }
         } else {
             agents.append(AgentSession(id: msg.sessionId, agent: msg.agent, project: project, state: msg.state,
                                        detail: msg.detail, since: Date(), pid: msg.pid))
-            if msg.state == .waiting { onPeek?(4) }
+            if msg.state == .waiting { attentionPulse += 1; onPeek?(4) }
         }
     }
 
@@ -196,6 +205,7 @@ final class HubStore: ObservableObject {
         conn.onHangup = { [weak self] in self?.permissions.removeAll { $0.id == pending.id } }
         conn.watchForHangup()
         NSSound(named: "Tink")?.play()
+        attentionPulse += 1
         onPeek?(8)
     }
 

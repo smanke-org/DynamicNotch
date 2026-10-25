@@ -1,5 +1,6 @@
 #!/bin/bash
-# Builds build/DynamicNotch.app (with the `notch` CLI inside it).
+# Builds build/DynamicNotch.app (with the `notch` CLI inside it), signed ad hoc, for anyone
+# building from source. Releases use ./build_app.sh (Developer ID) and ./release.sh.
 #   ./build.sh            release build
 #   ./build.sh --install  also copy to ~/Applications and link ~/.local/bin/notch
 #   ./build.sh --universal  Apple Silicon + Intel binary (needs Xcode), zipped for release
@@ -21,6 +22,7 @@ APP=build/DynamicNotch.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp Resources/Info.plist "$APP/Contents/"
+cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 cp "$BIN/DynamicNotch" "$BIN/notch" "$APP/Contents/MacOS/"
 codesign --force --sign - "$APP/Contents/MacOS/notch"
 codesign --force --sign - "$APP"
@@ -34,7 +36,7 @@ fi
 
 if [[ "${1:-}" == "--install" ]]; then
   DEST="$HOME/Applications/DynamicNotch.app"
-  osascript -e 'tell application id "dev.dynamicnotch.DynamicNotch" to quit' >/dev/null 2>&1 || true
+  osascript -e 'tell application id "com.smanke.DynamicNotch" to quit' >/dev/null 2>&1 || true
   mkdir -p "$HOME/Applications" "$HOME/.local/bin"
   rm -rf "$DEST"
   cp -R "$APP" "$DEST"

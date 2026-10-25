@@ -8,6 +8,8 @@ import SwiftUI
 struct NotchShape: Shape {
     var top: CGFloat
     var bottom: CGFloat
+    /// False leaves out the flat top edge, for drawing an outline that stops at the top of the screen.
+    var closed = true
 
     var animatableData: AnimatablePair<CGFloat, CGFloat> {
         get { AnimatablePair(top, bottom) }
@@ -24,7 +26,7 @@ struct NotchShape: Shape {
         p.addQuadCurve(to: CGPoint(x: r.maxX - top, y: r.maxY - bottom), control: CGPoint(x: r.maxX - top, y: r.maxY))
         p.addLine(to: CGPoint(x: r.maxX - top, y: r.minY + top))
         p.addQuadCurve(to: CGPoint(x: r.maxX, y: r.minY), control: CGPoint(x: r.maxX - top, y: r.minY))
-        p.closeSubpath()
+        if closed { p.closeSubpath() }
         return p
     }
 }
@@ -36,41 +38,190 @@ struct NotchRootView: View {
     @ObservedObject var store: HubStore
     @ObservedObject var media: NowPlaying
     @ObservedObject var volume: VolumeController
+    @State private var prefs = Preferences.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Pairs pieces of the closed notch with their places in the open one, for Grow.
+    @Namespace private var morph
 
-    private var flare: CGFloat { geometry.expanded ? 12 : 6 }
+    /// With Reduce Motion on, the notch always fades.
+    private var style: NotchAnimation { reduceMotion ? .fade : prefs.openAnimation }
 
     var body: some View {
-        let shape = NotchShape(top: flare, bottom: geometry.expanded ? 24 : 10)
         let ears = Ears(store: store, media: media)
 
         VStack(spacing: 0) {
-            ZStack(alignment: .top) {
-                if geometry.expanded {
-                    ExpandedView(geometry: geometry, store: store, media: media, volume: volume)
-                        .transition(.opacity.combined(with: .scale(scale: 0.92, anchor: .top)))
-                } else {
-                    CompactView(geometry: geometry, ears: ears)
-                        .transition(.opacity)
+            Group {
+                switch style {
+                case .grow: growing(ears)
+                case .fade: fading(ears)
                 }
             }
-            .padding(.horizontal, flare)
-            .background(Color.black)
-            .clipShape(shape)
+            .modifier(NotchEvents(store: store, expanded: geometry.expanded))
             // Measure directly: a preference key here only ever reported 0×0.
             .background(GeometryReader { g in
                 Color.clear
                     .onAppear { geometry.contentSize = g.size }
                     .onChange(of: g.size) { _, size in geometry.contentSize = size }
             })
-            .shadow(color: .black.opacity(geometry.expanded ? 0.45 : 0), radius: 18, y: 8)
             .opacity(geometry.hasNotch || geometry.expanded || ears.hasContent ? 1 : 0)
 
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: geometry.expanded)
+        .animation(style.animation(opening: geometry.expanded), value: geometry.expanded)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: ears.hasContent)
         .environment(\.colorScheme, .dark)
+    }
+
+    /// One black shape that stretches between the closed and open sizes. The album art and the
+    /// attention hand travel between their two places, and the open rows come into focus in turn.
+    private func growing(_ ears: Ears) -> some View {
+        let expanded = geometry.expanded
+        let flare: CGFloat = expanded ? 12 : 6
+        return ZStack(alignment: .top) {
+            if expanded {
+                ExpandedView(geometry: geometry, store: store, media: media, volume: volume, morph: morph, reveal: true)
+                    .transition(.asymmetric(insertion: .opacity, removal: AnyTransition(.blurReplace)))
+            } else {
+                CompactView(geometry: geometry, ears: ears, morph: morph)
+                    .transition(.blurReplace)
+            }
+        }
+        .padding(.horizontal, flare)
+        .background(Color.black)
+        .clipShape(NotchShape(top: flare, bottom: expanded ? 24 : 10))
+        .overlay(EdgeHighlight(top: flare, bottom: expanded ? 24 : 10).opacity(expanded ? 1 : 0))
+        .shadow(color: .black.opacity(expanded ? 0.45 : 0), radius: 18, y: 8)
+    }
+
+    /// The closed notch stays put and the open one fades in over it at full size.
+    private func fading(_ ears: Ears) -> some View {
+        ZStack(alignment: .top) {
+            CompactView(geometry: geometry, ears: ears, morph: nil)
+                .padding(.horizontal, 6)
+                .background(Color.black)
+                .clipShape(NotchShape(top: 6, bottom: 10))
+            if geometry.expanded {
+                ExpandedView(geometry: geometry, store: store, media: media, volume: volume, morph: nil, reveal: false)
+                    .padding(.horizontal, 12)
+                    .background(Color.black)
+                    .clipShape(NotchShape(top: 12, bottom: 24))
+                    .overlay(EdgeHighlight(top: 12, bottom: 24))
+                    .shadow(color: .black.opacity(0.45), radius: 18, y: 8)
+                    .transition(.opacity)
+            }
+        }
+    }
+}
+
+extension View {
+    /// Marks a view as the same piece as its counterpart in the other notch state, so Grow
+    /// moves one into the other. Does nothing without a namespace.
+    @ViewBuilder func morph(_ id: String, in namespace: Namespace.ID?) -> some View {
+        if let namespace { matchedGeometryEffect(id: id, in: namespace) } else { self }
+    }
+}
+
+/// A faint white line along the sides and bottom of the open notch, so it stands off dark wallpaper.
+struct EdgeHighlight: View {
+    let top: CGFloat
+    let bottom: CGFloat
+
+    var body: some View {
+        NotchShape(top: top, bottom: bottom, closed: false)
+            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            .allowsHitTesting(false)
+    }
+}
+
+/// The notch's reactions to events: an orange glow pulsing around its edge when something needs
+/// you, and a quick sideways shake when an activity fails. Each waits a moment so the notch has
+/// opened first. (A success's ripple belongs to its check mark; see `Ripple`.)
+struct NotchEvents: ViewModifier {
+    @ObservedObject var store: HubStore
+    let expanded: Bool
+
+    func body(content: Content) -> some View {
+        let top: CGFloat = expanded ? 12 : 6, bottom: CGFloat = expanded ? 24 : 10
+        content
+            .keyframeAnimator(initialValue: 0.0, trigger: store.attentionPulse) { view, glow in
+                view
+                    .overlay(NotchShape(top: top, bottom: bottom, closed: false)
+                        .stroke(Color.orange.opacity(glow), lineWidth: 2)
+                        .allowsHitTesting(false))
+                    .shadow(color: .orange.opacity(glow * 0.75), radius: 12)
+            } keyframes: { _ in
+                LinearKeyframe(0, duration: 0.25)
+                CubicKeyframe(1, duration: 0.2)
+                CubicKeyframe(0.3, duration: 0.3)
+                CubicKeyframe(1, duration: 0.2)
+                CubicKeyframe(0.3, duration: 0.3)
+                CubicKeyframe(1, duration: 0.2)
+                CubicKeyframe(0, duration: 0.6)
+            }
+            .keyframeAnimator(initialValue: 0.0, trigger: store.failurePulse) { view, x in
+                view.offset(x: x)
+            } keyframes: { _ in
+                LinearKeyframe(0, duration: 0.3)
+                CubicKeyframe(-12, duration: 0.06)
+                CubicKeyframe(10, duration: 0.08)
+                CubicKeyframe(-8, duration: 0.08)
+                CubicKeyframe(5, duration: 0.08)
+                CubicKeyframe(-2, duration: 0.07)
+                CubicKeyframe(0, duration: 0.07)
+            }
+    }
+}
+
+/// Green rings that spread out from a success's check mark and fade.
+struct Ripple: ViewModifier {
+    let trigger: Int
+
+    private struct Ring {
+        var scale = 1.0
+        var opacity = 0.0
+    }
+
+    func body(content: Content) -> some View {
+        content.overlay {
+            ZStack {
+                ring(delay: 0.3)
+                ring(delay: 0.5)
+            }
+            .allowsHitTesting(false)
+        }
+    }
+
+    private func ring(delay: Double) -> some View {
+        Circle()
+            .stroke(Color.green, lineWidth: 1.5)
+            .keyframeAnimator(initialValue: Ring(), trigger: trigger) { circle, ring in
+                circle.scaleEffect(ring.scale).opacity(ring.opacity)
+            } keyframes: { _ in
+                KeyframeTrack(\.scale) {
+                    LinearKeyframe(1, duration: delay)
+                    CubicKeyframe(3.2, duration: 0.75)
+                }
+                KeyframeTrack(\.opacity) {
+                    LinearKeyframe(0, duration: delay)
+                    LinearKeyframe(0.9, duration: 0.01)
+                    CubicKeyframe(0, duration: 0.74)
+                }
+            }
+    }
+}
+
+/// Brings a block of the open notch into focus a moment after the one above it.
+struct Reveal: ViewModifier {
+    let index: Int
+    let shown: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .blur(radius: shown ? 0 : 6)
+            .offset(y: shown ? 0 : -8)
+            .animation(.spring(response: 0.38, dampingFraction: 0.8).delay(0.04 + Double(index) * 0.035), value: shown)
     }
 }
 
@@ -104,6 +255,7 @@ struct Ears {
 struct CompactView: View {
     @ObservedObject var geometry: NotchGeometry
     let ears: Ears
+    let morph: Namespace.ID?
 
     var body: some View {
         let h = geometry.notchSize.height
@@ -123,8 +275,10 @@ struct CompactView: View {
         case .attention:
             Pulsing { Image(systemName: "hand.raised.fill").foregroundStyle(.orange) }
                 .font(.system(size: 13, weight: .semibold))
+                .morph("attention", in: morph)
         case .artwork(let image):
             Artwork(image: image, size: geometry.notchSize.height * 0.62, radius: 5)
+                .morph("artwork", in: morph)
         case nil:
             EmptyView()
         }
@@ -158,40 +312,61 @@ struct ExpandedView: View {
     @ObservedObject var store: HubStore
     @ObservedObject var media: NowPlaying
     @ObservedObject var volume: VolumeController
+    let morph: Namespace.ID?
+    /// Bring the blocks into focus one after another as the notch opens.
+    let reveal: Bool
+    @State private var shown = false
 
     var body: some View {
         let activities = store.visibleActivities
+        let shown = self.shown || !reveal
         VStack(alignment: .leading, spacing: 12) {
-            ForEach(store.permissions) { p in
-                PermissionCard(permission: p) { store.resolve(p, $0) }
+            Group {
+                ForEach(Array(store.permissions.enumerated()), id: \.element.id) { index, p in
+                    // Only the first card's hand comes out of the notch's.
+                    PermissionCard(permission: p, morph: index == 0 ? morph : nil) { store.resolve(p, $0) }
+                }
             }
+            .modifier(Reveal(index: 0, shown: shown))
 
-            if media.track != nil {
-                MediaCard(media: media)
+            Group {
+                if media.track != nil {
+                    MediaCard(media: media, morph: morph)
+                }
             }
+            .modifier(Reveal(index: 1, shown: shown))
             VolumeRow(volume: volume)
+                .modifier(Reveal(index: 2, shown: shown))
 
             if !store.agents.isEmpty {
-                SectionHeader(title: "Agents")
-                ForEach(store.agents.prefix(4)) { AgentRow(session: $0) }
+                Group {
+                    SectionHeader(title: "Agents")
+                    ForEach(store.agents.prefix(4)) { AgentRow(session: $0) }
+                }
+                .modifier(Reveal(index: 3, shown: shown))
             }
 
             if !activities.isEmpty {
-                SectionHeader(title: "Activities")
-                ForEach(activities.suffix(5).reversed()) { a in
-                    ActivityRow(activity: a) { store.dismiss(a) }
+                Group {
+                    SectionHeader(title: "Activities")
+                    ForEach(activities.suffix(5).reversed()) { a in
+                        ActivityRow(activity: a) { store.dismiss(a) }
+                    }
+                    if activities.count > 5 {
+                        Text("+\(activities.count - 5) more").font(.system(size: 11)).foregroundStyle(.secondary)
+                    }
                 }
-                if activities.count > 5 {
-                    Text("+\(activities.count - 5) more").font(.system(size: 11)).foregroundStyle(.secondary)
-                }
+                .modifier(Reveal(index: 4, shown: shown))
             }
 
             if store.agents.isEmpty && activities.isEmpty && store.permissions.isEmpty {
                 Text("Nothing running. Try  notch run -- sleep 5")
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(.tertiary)
+                    .modifier(Reveal(index: 3, shown: shown))
             }
         }
+        .onAppear { if reveal { self.shown = true } }
         .padding(.top, geometry.notchSize.height + 8)
         .padding(.horizontal, 16)
         .padding(.bottom, 16)
@@ -212,12 +387,14 @@ struct SectionHeader: View {
 
 struct PermissionCard: View {
     let permission: PendingPermission
+    var morph: Namespace.ID? = nil
     let decide: (PermissionDecision) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Image(systemName: "hand.raised.fill").foregroundStyle(.orange)
+                    .morph("attention", in: morph)
                 Text("\(permission.agent) · \(permission.project)").font(.system(size: 12, weight: .semibold))
                 Spacer()
                 Text(permission.tool)
@@ -250,11 +427,13 @@ struct PermissionCard: View {
 
 struct MediaCard: View {
     @ObservedObject var media: NowPlaying
+    var morph: Namespace.ID? = nil
 
     var body: some View {
         if let t = media.track {
             HStack(spacing: 12) {
                 Artwork(image: media.artwork, size: 50, radius: 9)
+                    .morph("artwork", in: morph)
                     .onTapGesture { media.openPlayer() }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(t.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
@@ -401,10 +580,14 @@ struct AgentRow: View {
 struct ActivityRow: View {
     let activity: Activity
     let dismiss: () -> Void
+    /// Bumped when this activity succeeds while it's on screen (or just before the notch opened
+    /// to show it), to send a ripple out from its check mark.
+    @State private var ripple = 0
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             icon.font(.system(size: 13)).frame(width: 16).padding(.top, 1)
+                .modifier(Ripple(trigger: ripple))
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text(activity.title).font(.system(size: 12, weight: .semibold)).lineLimit(1)
@@ -435,6 +618,13 @@ struct ActivityRow: View {
         .contentShape(Rectangle())
         .onTapGesture {
             if let s = activity.url, let url = URL(string: s) { NSWorkspace.shared.open(url) }
+        }
+        // A success usually opens the notch, so the row appears just after it finished.
+        .onAppear {
+            if activity.state == .success, let done = activity.finishedAt, Date().timeIntervalSince(done) < 1.5 { ripple += 1 }
+        }
+        .onChange(of: activity.state) { _, state in
+            if state == .success { ripple += 1 }
         }
     }
 

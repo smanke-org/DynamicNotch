@@ -1,17 +1,41 @@
 import AppKit
 import NotchKit
-import ServiceManagement
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+/// Launch, the menu bar item, the Dock menu, and reopening.
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let store = HubStore()
     private let media = NowPlaying()
     private let volume = VolumeController()
     private var server: SocketServer?
-    private var notch: NotchWindowController?
+    private var notch: NotchScreens?
     private var statusItem: NSStatusItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         signal(SIGPIPE, SIG_IGN)
+
+        let mainMenu = AppPresence.mainMenu(appName: AppInfo.name, settingsTitle: "Settings…",
+                                            target: self, settings: #selector(showSettings))
+        // Right below About in the app menu, where Mac apps keep it.
+        mainMenu.items.first?.submenu?.insertItem(item("Check for Updates…", #selector(checkForUpdates)), at: 1)
+        mainMenu.items.first?.submenu?.insertItem(item("Our other apps…", #selector(showOtherApps)), at: 2)
+        // Help menu, with the standard ⌘? (macOS adds its search field).
+        let helpItem = NSMenuItem()
+        let help = NSMenu(title: "Help")
+        help.addItem(item("\(AppInfo.name) Help", #selector(showHelp), key: "?"))
+        helpItem.submenu = help
+        mainMenu.addItem(helpItem)
+        NSApp.helpMenu = help
+        NSApp.mainMenu = mainMenu
+        AppAppearance.start()
+        #if DEBUG
+        // A test run shares the installed app's settings, so it checks Help and stops
+        // before the socket, the notch or sync starts.
+        if let snapshot = ProcessInfo.processInfo.environment["DYNAMICNOTCH_DEBUG_HELP_TEST"] {
+            DebugHelpTest.run(snapshot: snapshot, delegate: self)
+            return
+        }
+        #endif
 
         let server = SocketServer(path: NotchPaths.socketPath) { [store] request, conn in store.handle(request, conn) }
         do {
@@ -25,50 +49,140 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         self.server = server
 
-        notch = NotchWindowController(store: store, media: media, volume: volume)
+        let notch = NotchScreens(store: store, media: media, volume: volume)
+        self.notch = notch
+        notch.onOpenSettings = { [weak self] in self?.showSettings() }
+        SettingsWindow.shared.showNotch = { [weak notch] in notch?.show() }
+
+        // Set at the end of the first launch, so its absence means a brand-new install.
+        let newInstall = !UserDefaults.standard.bool(forKey: "launchedBefore")
+        if newInstall { SettingsSync.shared.adoptOnNewInstall() }
+        SettingsSync.shared.start()
+        UserDefaults.standard.set(true, forKey: "launchedBefore")
+
         setUpStatusItem()
+        // ToolHUD can take the menu into its own while it runs.
+        NotificationCenter.default.addObserver(forName: AppPresence.menuBarDidChange, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { [weak self] in self?.statusItem?.isVisible = MenuHub.shared.showsOwnIcon }
+        }
+        MenuHub.shared.onChange = { SettingsSync.shared.localDidChange() }
+        MenuHub.shared.start(menu: { [weak self] in
+            let menu = NSMenu()
+            self?.menuNeedsUpdate(menu)
+            return menu
+        }, icon: { [weak self] in self?.statusItem?.button?.image })
+
+        // Restarting drops a permission waiting in the notch and running activities' progress.
+        AutoUpdater.shared.busyCheck = { [weak self] in
+            guard let self else { return nil }
+            if !store.permissions.isEmpty { return "a permission is waiting for an answer" }
+            if store.runningCount > 0 { return "something is running" }
+            if notch.isExpanded { return "the notch is open" }
+            return nil
+        }
+        AutoUpdater.shared.start()
+        if !AppPresence.showInMenuBar && !AppPresence.showInDock { showSettings() }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         server?.stop()
     }
 
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        let menu = AppPresence.dockMenu(title: "Settings…", target: self, action: #selector(showSettings))
+        menu.insertItem(.separator(), at: 0)
+        menu.insertItem(item("Show Notch", #selector(toggleNotch)), at: 0)
+        return menu
+    }
+
+    /// Opening the app again (from Applications, Spotlight, or the Dock tile) shows Settings.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showSettings()
+        return true
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    /// `dynamicnotch://` URLs, from ToolHUD, Shortcuts or a script.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where url.scheme == "dynamicnotch" {
+            switch url.host {
+            case "show": notch?.show()
+            case "clear": store.clearFinished()
+            default: showSettings()
+            }
+        }
+    }
+
+    // MARK: - Menu bar
+
     private func setUpStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(systemSymbolName: "rectangle.topthird.inset.filled", accessibilityDescription: "DynamicNotch")
+        item.button?.image = NSImage(systemSymbolName: "rectangle.topthird.inset.filled", accessibilityDescription: AppInfo.name)
         let menu = NSMenu()
-        menu.addItem(withTitle: "Show Notch", action: #selector(toggleNotch), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Clear Finished Activities", action: #selector(clearFinished), keyEquivalent: "").target = self
-        menu.addItem(.separator())
-        let login = menu.addItem(withTitle: "Open at Login", action: #selector(toggleLogin), keyEquivalent: "")
-        login.target = self
-        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
-        menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit DynamicNotch", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.delegate = self
         item.menu = menu
+        item.isVisible = MenuHub.shared.showsOwnIcon
         statusItem = item
     }
 
-    @objc private func toggleNotch() { notch?.toggle() }
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        menu.addItem(item(notch?.isExpanded == true ? "Hide Notch" : "Show Notch", #selector(toggleNotch)))
+        menu.addItem(item("Clear Finished Activities", #selector(clearFinished)))
 
-    @objc private func clearFinished() { store.clearFinished() }
-
-    @objc private func toggleLogin(_ sender: NSMenuItem) {
-        do {
-            if SMAppService.mainApp.status == .enabled {
-                try SMAppService.mainApp.unregister()
-            } else {
-                try SMAppService.mainApp.register()
-            }
-        } catch {
-            NSLog("DynamicNotch: login item change failed: \(error)")
+        menu.addItem(.separator())
+        let helpEntry = item("\(AppInfo.name) Help", #selector(showHelp))
+        helpEntry.image = NSImage(systemSymbolName: "questionmark.circle", accessibilityDescription: nil)
+        menu.addItem(helpEntry)
+        menu.addItem(item("Settings…", #selector(showSettings), key: ","))
+        if let staged = AutoUpdater.shared.staged {
+            menu.addItem(item("Update to \(staged.version) Now (Otherwise Installs When Idle)", #selector(installUpdateNow)))
+        } else if let pending = UpdateAvailability.shared.pending {
+            menu.addItem(item("Update to \(pending)…", #selector(checkForUpdates)))
+        } else {
+            menu.addItem(item("Check for Updates…", #selector(checkForUpdates)))
         }
-        sender.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        menu.addItem(item("About \(AppInfo.name)", #selector(showAbout)))
+        menu.addItem(item("Our other apps…", #selector(showOtherApps)))
+        menu.addItem(.separator())
+        let version = NSMenuItem(title: "\(AppInfo.name) \(AppInfo.displayVersion)", action: nil, keyEquivalent: "")
+        version.isEnabled = false
+        menu.addItem(version)
+        menu.addItem(item("Quit \(AppInfo.name)", #selector(quit), key: "q"))
+    }
+
+    private func item(_ title: String, _ action: Selector, key: String = "") -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+        item.target = self
+        return item
+    }
+
+    // MARK: - Actions
+
+    @objc func toggleNotch() { notch?.toggle() }
+    @objc func clearFinished() { store.clearFinished() }
+    @objc func showSettings() { SettingsWindow.shared.show() }
+    @objc func showHelp() { HelpWindow.shared.show() }
+    @objc func checkForUpdates() { UpdateController.checkForUpdates() }
+    @objc func installUpdateNow() { AutoUpdater.shared.installNow() }
+    @objc func quit() { NSApp.terminate(nil) }
+
+    /// The developer's site, which lists every app.
+    @objc func showOtherApps() {
+        if let url = URL(string: "https://stevemanke.com/") { NSWorkspace.shared.open(url) }
+    }
+    @objc func showAbout() {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(nil)
     }
 }
 
-let app = NSApplication.shared
-let delegate = AppDelegate()
-app.delegate = delegate
-app.setActivationPolicy(.accessory)
-app.run()
+// Top-level code isn't main-actor isolated in Swift 5 mode, though it runs on the main thread.
+MainActor.assumeIsolated {
+    let app = NSApplication.shared
+    let delegate = AppDelegate()
+    app.delegate = delegate
+    app.setActivationPolicy(AppPresence.showInDock ? .regular : .accessory)
+    app.run()
+}

@@ -2,27 +2,71 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleIdentifier</key>
-    <string>dev.dynamicnotch.DynamicNotch</string>
-    <key>CFBundleName</key>
-    <string>DynamicNotch</string>
-    <key>CFBundleDisplayName</key>
-    <string>DynamicNotch</string>
-    <key>CFBundleExecutable</key>
-    <string>DynamicNotch</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
-    <key>CFBundleVersion</key>
-    <string>1</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>14.0</string>
-    <key>LSUIElement</key>
-    <true/>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-    <key>NSAppleEventsUsageDescription</key>
-    <string>DynamicNotch controls Music and Spotify so you can play, pause and skip from the notch.</string>
+	<key>CFBundleDisplayName</key>
+	<string>DynamicNotch</string>
+	<key>CFBundleExecutable</key>
+	<string>DynamicNotch</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.smanke.DynamicNotch</string>
+	<key>CFBundleName</key>
+	<string>DynamicNotch</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.1</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>DynamicNotch</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>dynamicnotch</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>0.1.1</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>DynamicNotch controls Music and Spotify so you can play, pause and skip from the notch.</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2026 Steve Manke</string>
+	<key>ToolHUDActions</key>
+	<array>
+		<dict>
+			<key>activates</key>
+			<false/>
+			<key>id</key>
+			<string>show</string>
+			<key>shortTitle</key>
+			<string>Notch</string>
+			<key>symbol</key>
+			<string>rectangle.topthird.inset.filled</string>
+			<key>title</key>
+			<string>Show the notch</string>
+		</dict>
+		<dict>
+			<key>activates</key>
+			<false/>
+			<key>id</key>
+			<string>clear</string>
+			<key>shortTitle</key>
+			<string>Clear</string>
+			<key>symbol</key>
+			<string>checkmark.circle</string>
+			<key>title</key>
+			<string>Clear finished activities</string>
+		</dict>
+	</array>
 </dict>
 </plist>
