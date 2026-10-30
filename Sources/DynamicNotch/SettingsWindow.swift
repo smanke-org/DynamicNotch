@@ -40,8 +40,8 @@ final class SettingsTabs: NSTabViewController {
         super.init(nibName: nil, bundle: nil)
         tabStyle = .toolbar
         transitionOptions = [.crossfade, .allowUserInteraction]
-        add("Notch", "rectangle.topthird.inset.filled", NotchSettings())
         add("General", "gearshape", GeneralSettings())
+        add("Notch", "rectangle.topthird.inset.filled", NotchSettings())
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -153,6 +153,7 @@ struct NotchSettings: View {
 // MARK: - General
 
 struct GeneralSettings: View {
+    @State private var prefs = Preferences.shared
     @State private var presence = PresenceSettings.shared
     @State private var hub = MenuHub.shared
     @State private var login = LaunchAtLogin.shared
@@ -195,6 +196,8 @@ struct GeneralSettings: View {
                 if let error = login.lastError {
                     Text(error).font(.callout).foregroundStyle(.red)
                 }
+                Toggle("Ask before quitting", isOn: $prefs.confirmQuit)
+                    .help("Quitting DynamicNotch asks first, so a stray ⌘Q doesn't take the notch away.")
             }
             Section {
                 Toggle("Sync settings with your other Macs", isOn: $sync.isEnabled)
@@ -214,7 +217,7 @@ struct GeneralSettings: View {
             } header: {
                 Text("iCloud")
             } footer: {
-                Text("The animation, appearance, update choice and where DynamicNotch appears follow you to every Mac signed in to the same iCloud account with sync turned on. Open at login stays separate on each Mac.")
+                Text("The animation, appearance, update choice, asking before quitting and where DynamicNotch appears follow you to every Mac signed in to the same iCloud account with sync turned on. Open at login stays separate on each Mac.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {

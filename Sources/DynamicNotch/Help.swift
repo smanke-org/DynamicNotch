@@ -56,6 +56,7 @@ enum Help {
             .tip("The menu bar icon's Show Notch opens it for a few seconds, handy on a screen where you can't hover the notch."),
             .tip("Right-click or ⌘-click the notch, open or closed, to open Settings."),
             .tip("While ToolHUD is running, DynamicNotch's menu moves into ToolHUD's menu bar menu as a submenu, and the icon here steps aside until ToolHUD quits. To keep the icon, turn off \"Put in ToolHUD's menu while ToolHUD is running\" in Settings › General."),
+            .tip("Quitting asks first, since the notch and its live activities stop while DynamicNotch is closed. Turn off \"Ask before quitting\" in Settings › General, or tick \"Don't ask again\" when it asks."),
         ]),
 
         HelpTopic(id: "notch", title: "The Notch", symbol: "rectangle.topthird.inset.filled", blocks: [
@@ -115,7 +116,7 @@ enum Help {
 
         HelpTopic(id: "sync", title: "Sync and Updates", symbol: "icloud", blocks: [
             .text("Show in Dock and Show in menu bar choose where DynamicNotch appears; the notch shows either way. With both off, open DynamicNotch again from Applications or Spotlight to get back to Settings."),
-            .text("Turn on \"Sync settings with your other Macs\" in Settings › General to share the animation, appearance, update choice and where DynamicNotch appears through iCloud Drive. Open at login stays separate on each Mac."),
+            .text("Turn on \"Sync settings with your other Macs\" in Settings › General to share the animation, appearance, update choice, asking before quitting and where DynamicNotch appears through iCloud Drive. Open at login stays separate on each Mac."),
             .heading("Updates"),
             .keys([
                 ("Install automatically", "Download, check and install new versions when nothing is running or waiting in the notch and the Mac isn't in use"),

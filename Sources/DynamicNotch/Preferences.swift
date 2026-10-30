@@ -66,11 +66,14 @@ final class Preferences {
         }
     }
 
+    /// Quitting asks first, so a stray ⌘Q doesn't take the notch away.
+    var confirmQuit: Bool = true { didSet { save(confirmQuit, "confirmQuit") } }
+
     /// Posted when `notchDisplays` changes, here or from another Mac.
     static let displaysDidChange = Notification.Name("Preferences.displaysDidChange")
 
     /// Every key this class writes.
-    static let keys = ["openAnimation", "notchDisplays"]
+    static let keys = ["openAnimation", "notchDisplays", "confirmQuit"]
 
     @ObservationIgnored private var loading = false
 
@@ -80,7 +83,7 @@ final class Preferences {
     /// iCloud gets the whole set, so a Mac adopting it never mistakes a setting that is
     /// merely at its default for one that is missing.
     var snapshot: [String: Any] {
-        ["openAnimation": openAnimation.rawValue, "notchDisplays": notchDisplays.rawValue]
+        ["openAnimation": openAnimation.rawValue, "notchDisplays": notchDisplays.rawValue, "confirmQuit": confirmQuit]
     }
 
     /// Re-reads every setting after another Mac's settings were written into UserDefaults.
@@ -91,6 +94,7 @@ final class Preferences {
         defer { loading = false }
         openAnimation = UserDefaults.standard.string(forKey: "openAnimation").flatMap(NotchAnimation.init) ?? .grow
         notchDisplays = UserDefaults.standard.string(forKey: "notchDisplays").flatMap(NotchDisplays.init) ?? .builtIn
+        confirmQuit = UserDefaults.standard.object(forKey: "confirmQuit") as? Bool ?? true
     }
 
     /// Writes only real changes, and reports them for iCloud sync. SwiftUI controls write
@@ -100,6 +104,14 @@ final class Preferences {
         guard !loading else { return }
         let defaults = UserDefaults.standard
         if defaults.string(forKey: key) == value { return }
+        defaults.set(value, forKey: key)
+        SettingsSync.shared.localDidChange()
+    }
+
+    private func save(_ value: Bool, _ key: String) {
+        guard !loading else { return }
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: key) as? Bool == value { return }
         defaults.set(value, forKey: key)
         SettingsSync.shared.localDidChange()
     }

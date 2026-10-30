@@ -46,7 +46,7 @@ enum DebugHelpTest {
                     }
                 }
                 trace("done")
-                NSApp.terminate(nil)
+                QuitConfirmation.quitNow()
             }
         }
     }
