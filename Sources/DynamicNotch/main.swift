@@ -47,6 +47,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             DebugHelpTest.run(snapshot: snapshot, delegate: self)
             return
         }
+        // The update prompt, What's New and Settings drawn to PNGs; also starts nothing else.
+        if let folder = ProcessInfo.processInfo.environment["DYNAMICNOTCH_DEBUG_UPDATE_NOTES"] {
+            DebugUpdateNotes.run(folder: folder)
+            return
+        }
         if let how = ProcessInfo.processInfo.environment["DYNAMICNOTCH_DEBUG_QUIT_TEST"] {
             DebugQuitTest.run(how)
             return
@@ -96,7 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if notch.isExpanded { return "the notch is open" }
             return nil
         }
-        AutoUpdater.shared.start()
+        AutoUpdater.shared.start(newInstall: newInstall)
         if !AppPresence.showInMenuBar && !AppPresence.showInDock { showSettings() }
     }
 
