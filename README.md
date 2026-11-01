@@ -4,6 +4,8 @@ DynamicNotch turns your Mac's notch into a status area, like the Dynamic Island 
 
 On a Mac without a notch (or on an external display), it shows as a pill in the middle of the menu bar, only when there's something to show. Hover over the notch to open it.
 
+<p align="center"><img src="docs/images/dynamicnotch-claude-code.png" width="480" alt="The open notch asking to allow a Claude Code Bash command, with two Claude Code sessions and three script activities with progress bars below"></p>
+
 ## Download
 
 **[⬇ Download DynamicNotch.dmg](https://github.com/smanke-org/DynamicNotch/releases/latest/download/DynamicNotch.dmg)**
@@ -63,6 +65,14 @@ Music and Spotify are shown through their track-change broadcasts. Play/pause/sk
 - System, Light or Dark appearance for its windows, whatever the Mac uses.
 - Optional iCloud sync keeps settings the same on every Mac signed in to your iCloud account (through iCloud Drive; turn it on in Settings › General).
 - Shows in the menu bar, the Dock, both, or neither, and folds its menu into ToolHUD's while ToolHUD runs. Can open at login.
+
+## Screenshots
+
+<table>
+<tr>
+<td align="center"><img src="docs/images/dynamicnotch-activities.png" width="480" alt="The open notch with a volume slider and three activities: Run tests, Deploy and Export video, each with a progress bar"><br><sub><b>Live activities.</b> Long jobs from scripts and the shell, each with its progress, plus the volume slider.</sub></td>
+</tr>
+</table>
 
 ## Updates
 
