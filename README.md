@@ -63,6 +63,8 @@ Music and Spotify are shown through their track-change broadcasts. Play/pause/sk
 - Can be driven from a URL, for ToolHUD, Shortcuts or scripts: `dynamicnotch://show`, `clear` and `settings`.
 - Built-in Help (⌘? or the ? in Settings) covers every feature and command.
 - System, Light or Dark appearance for its windows, whatever the Mac uses.
+- The update window shows the notes for the latest releases, marking the ones you don't have yet. **What's New…** in Settings › General shows them any time.
+- Settings can be dragged bigger to see more of a pane at once, and keeps the size you choose.
 - Optional iCloud sync keeps settings the same on every Mac signed in to your iCloud account (through iCloud Drive; turn it on in Settings › General).
 - Shows in the menu bar, the Dock, both, or neither, and folds its menu into ToolHUD's while ToolHUD runs. Can open at login.
 
