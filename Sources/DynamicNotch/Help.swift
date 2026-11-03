@@ -125,7 +125,7 @@ enum Help {
             ]),
             .heading("What's new"),
             .text("The update window shows the notes for the latest releases, with the ones you don't have yet marked New. \"Don't remind me about this version\" is ticked to begin with: click Not Now with it ticked, and DynamicNotch stops reminding you about that version (Check Now still offers it). Untick it to be reminded again."),
-            .text("After an update that installed itself, Settings shows what changed the next time it opens. Tick \"Don't show this again\" to put it away. What's New… beside Check Now in Settings › General shows the notes any time."),
+            .text("After an update that installed itself, Settings shows what changed the next time it opens. Tick \"Don't show this again\" to put it away. What's New… beside Check Now in Settings › General shows the notes any time, and About DynamicNotch shows the last 10 releases."),
             .tip("Settings can be dragged bigger to see more of a pane at once, and keeps the size you choose."),
         ]),
 
