@@ -182,20 +182,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
-        menu.addItem(item(notch?.isExpanded == true ? "Hide Notch" : "Show Notch", #selector(toggleNotch)))
-        menu.addItem(item("Clear Finished Activities", #selector(clearFinished)))
+        menu.addItem(item(notch?.isExpanded == true ? "Hide Notch" : "Show Notch", #selector(toggleNotch)).showIcon("rectangle.topthird.inset.filled"))
+        menu.addItem(item("Clear Finished Activities", #selector(clearFinished)).showIcon("xmark.circle"))
 
         menu.addItem(.separator())
         let helpEntry = item("\(AppInfo.name) Help", #selector(showHelp))
         helpEntry.image = NSImage(systemSymbolName: "questionmark.circle", accessibilityDescription: nil)
         menu.addItem(helpEntry)
-        menu.addItem(item("Settings…", #selector(showSettings), key: ","))
+        menu.addItem(item("Settings…", #selector(showSettings), key: ",").showIcon("gearshape"))
         if let staged = AutoUpdater.shared.staged {
-            menu.addItem(item("Update to \(staged.version) Now (Otherwise Installs When Idle)", #selector(installUpdateNow)))
+            menu.addItem(item("Update to \(staged.version) Now (Otherwise Installs When Idle)", #selector(installUpdateNow)).showIcon("arrow.down.circle"))
         } else if let pending = UpdateAvailability.shared.pending {
-            menu.addItem(item("Update to \(pending)…", #selector(checkForUpdates)))
+            menu.addItem(item("Update to \(pending)…", #selector(checkForUpdates)).showIcon("arrow.down.circle"))
         } else {
-            menu.addItem(item("Check for Updates…", #selector(checkForUpdates)))
+            menu.addItem(item("Check for Updates…", #selector(checkForUpdates)).showIcon("arrow.down.circle"))
         }
         menu.addItem(item("About \(AppInfo.name)", #selector(showAbout)))
         menu.addItem(item("Our other apps…", #selector(showOtherApps)))
