@@ -8,7 +8,7 @@ enum AppAppearance: String, CaseIterable, Identifiable {
     case system, light, dark
 
     static let key = "appearance"
-    static var store: UserDefaults { .standard }
+    static var store: UserDefaults { AppDefaults.store }
 
     var id: String { rawValue }
 

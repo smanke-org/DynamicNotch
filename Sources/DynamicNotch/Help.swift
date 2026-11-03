@@ -136,6 +136,16 @@ enum Help {
                 ("dynamicnotch://settings", "Open Settings"),
             ]),
             .text("Use these links from Shortcuts, scripts or a launcher. ToolHUD's DynamicNotch buttons use them."),
+            .heading("Command line and AI agents"),
+            .text("The notch command also lets scripts and AI agents such as Claude Code and Codex see and change what the notch shows. Each command runs in the open app, and if DynamicNotch isn't open, it starts in the background. Add --json to any of them for an answer a program can read."),
+            .keys([
+                ("notch status", "What the notch is showing: activities, Claude Code sessions, music and volume"),
+                ("notch activities list", "The live activities, with their progress"),
+                ("notch notice show <title>", "A one-off notice: a green check, or a red cross with --failed"),
+                ("notch settings set", "Change the animation, displays, appearance and more"),
+                ("notch help", "Every command"),
+            ]),
+            .text("Agents can't answer Claude Code's permission questions: only you can, in the notch. For apps that use MCP, such as Claude Desktop, the same commands are served by /Applications/DynamicNotch.app/Contents/MacOS/DynamicNotch mcp."),
         ]),
 
         HelpTopic(id: "troubleshooting", title: "Troubleshooting", symbol: "wrench.and.screwdriver", blocks: [

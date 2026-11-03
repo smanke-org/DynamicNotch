@@ -50,6 +50,24 @@ notch setup claude --remove   # undo
 
 Sessions show as Working / Needs you / Idle. When Claude asks for a permission, the notch opens with **Allow / Deny / Answer in terminal**. If you don't answer within `NOTCH_APPROVAL_TIMEOUT` seconds (default 120), or DynamicNotch isn't running, Claude Code shows its normal prompt.
 
+## Command line and AI agents
+
+The same `notch` command lets scripts and AI agents (Claude Code, Codex) see what the notch shows, put a notice or a live activity in it, clear activities, open the notch, and read or change its settings. Each command runs in the open app (it starts in the background if it isn't open), and the notch shows the change at once. With the link from the Download steps in place:
+
+```bash
+notch help                                   # every command
+notch status --json                          # activities, Claude Code sessions, music, volume
+notch notice show "Tests passed" --detail "128 tests"
+notch activities start "Export" --progress 40%
+notch settings set --animation fade --displays all
+```
+
+Every command takes `--json` and answers with one JSON object. Agents can see Claude Code's permission questions but can't answer them: only you can, in the notch. For MCP apps such as Claude Desktop, the same commands are served by `/Applications/DynamicNotch.app/Contents/MacOS/DynamicNotch mcp`:
+
+```bash
+claude mcp add --scope user notch -- /Applications/DynamicNotch.app/Contents/MacOS/DynamicNotch mcp
+```
+
 ## Music & volume
 
 Music and Spotify are shown through their track-change broadcasts. Play/pause/skip use AppleScript, so macOS asks once per player. Other sources, like browsers, aren't covered: Apple locked the system Now Playing API to its own apps in macOS 15.4. The volume slider controls the current output device and follows the keyboard volume keys.
@@ -83,7 +101,7 @@ DynamicNotch checks GitHub for updates once a day (or as often as you choose, fr
 ## How it fits together
 
 - `Sources/DynamicNotch`: the menu-bar app. A transparent panel over the notch (`NotchWindow.swift`), SwiftUI views (`Views.swift`), state (`HubStore.swift`), and a Unix socket server at `~/Library/Application Support/DynamicNotch/hub.sock`.
-- `Sources/notch`: the CLI. Each command sends one JSON line over the socket and reads one reply. Permission requests keep the connection open until you decide.
+- `Sources/notch`: the CLI. Each command sends one JSON line over the socket and reads one reply. Permission requests keep the connection open until you decide. Agent commands (`status`, `activities`, `notice`, `settings`, `mcp`…) are handed to the app binary, which sends them to the running app over `agent.sock` in the same folder (`Sources/DynamicNotch/Agent`).
 - `Sources/NotchKit`: the shared message types and socket client.
 
 Activities tied to a process (`--pid`, `notch run`, shell hooks, Claude sessions) disappear on their own if that process dies.

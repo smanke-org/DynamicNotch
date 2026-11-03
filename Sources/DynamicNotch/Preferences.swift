@@ -92,9 +92,9 @@ final class Preferences {
     private func load() {
         loading = true
         defer { loading = false }
-        openAnimation = UserDefaults.standard.string(forKey: "openAnimation").flatMap(NotchAnimation.init) ?? .grow
-        notchDisplays = UserDefaults.standard.string(forKey: "notchDisplays").flatMap(NotchDisplays.init) ?? .builtIn
-        confirmQuit = UserDefaults.standard.object(forKey: "confirmQuit") as? Bool ?? true
+        openAnimation = AppDefaults.store.string(forKey: "openAnimation").flatMap(NotchAnimation.init) ?? .grow
+        notchDisplays = AppDefaults.store.string(forKey: "notchDisplays").flatMap(NotchDisplays.init) ?? .builtIn
+        confirmQuit = AppDefaults.store.object(forKey: "confirmQuit") as? Bool ?? true
     }
 
     /// Writes only real changes, and reports them for iCloud sync. SwiftUI controls write
@@ -102,7 +102,7 @@ final class Preferences {
     /// edits would send the same settings back and forth between Macs forever.
     private func save(_ value: String, _ key: String) {
         guard !loading else { return }
-        let defaults = UserDefaults.standard
+        let defaults = AppDefaults.store
         if defaults.string(forKey: key) == value { return }
         defaults.set(value, forKey: key)
         SettingsSync.shared.localDidChange()
@@ -110,7 +110,7 @@ final class Preferences {
 
     private func save(_ value: Bool, _ key: String) {
         guard !loading else { return }
-        let defaults = UserDefaults.standard
+        let defaults = AppDefaults.store
         if defaults.object(forKey: key) as? Bool == value { return }
         defaults.set(value, forKey: key)
         SettingsSync.shared.localDidChange()

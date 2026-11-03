@@ -39,7 +39,7 @@ final class SettingsSync {
         set { defaults.set(newValue, forKey: Keys.localModified) }
     }
 
-    private let defaults = UserDefaults.standard
+    private let defaults = AppDefaults.store
     private var applying = false
     private var started = false
     private var writeTask: Task<Void, Never>?
@@ -117,6 +117,10 @@ final class SettingsSync {
 
     /// Called whenever a synced setting really changes on this Mac.
     func localDidChange() {
+        #if DEBUG
+        // An agent CLI test copy never syncs, and keeps no sync timestamp.
+        if AgentSocket.isTestRun { return }
+        #endif
         guard !applying else { return }
         localModified = Self.now
         guard started else { return }

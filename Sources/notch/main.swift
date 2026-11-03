@@ -25,6 +25,26 @@ Integrations
 Ids default to a slug of the title, so `notch start "Deploy"` pairs with `notch done "Deploy"`.
 """
 
+/// Commands for agents and scripts (`notch status`, `notch settings set`, `notch mcp`…) live in
+/// the app's own binary, beside this one (Sources/DynamicNotch/Agent): this hands them over,
+/// arguments and all, so `notch` stays the one command to type.
+func forwardToApp(_ arguments: [String]) -> Never {
+    var size: UInt32 = 0
+    _NSGetExecutablePath(nil, &size)
+    var buffer = [CChar](repeating: 0, count: Int(size))
+    let me = _NSGetExecutablePath(&buffer, &size) == 0 ? String(cString: buffer) : CommandLine.arguments[0]
+    let app = URL(fileURLWithPath: me).resolvingSymlinksInPath().deletingLastPathComponent()
+        .appendingPathComponent("DynamicNotch").path
+    guard FileManager.default.isExecutableFile(atPath: app) else { fail("can't find DynamicNotch beside notch (\(app))") }
+    fflush(stdout)
+    let argv: [UnsafeMutablePointer<CChar>?] = ([app] + arguments).map { strdup($0) } + [nil]
+    execv(app, argv)
+    fail("couldn't run \(app): \(String(cString: strerror(errno)))")
+}
+
+/// The first words that belong to the app's agent commands.
+let agentCommands: Set<String> = ["status", "activities", "notice", "sessions", "panel", "settings", "mcp", "version", "--version"]
+
 // MARK: - Argument parsing
 
 struct Args {
@@ -154,6 +174,10 @@ let command = argv.first ?? "help"
 let tail = Array(argv.dropFirst())
 let commonFlags: Set<String> = ["quiet", "fail", "hide-if-unseen", "print", "remove"]
 
+if agentCommands.contains(command) || (["help", "-h", "--help"].contains(command) && !tail.isEmpty) {
+    forwardToApp(argv)
+}
+
 switch command {
 case "start":
     start(Args(tail, flags: commonFlags))
@@ -168,7 +192,7 @@ case "remove", "dismiss":
     post(HubRequest(kind: .remove, id: id))
 case "clear":
     post(HubRequest(kind: .clear))
-case "list", "ls", "status":
+case "list", "ls":
     guard let r = post(HubRequest(kind: .list)) else { exit(1) }
     let lines = r.lines ?? []
     print(lines.isEmpty ? "DynamicNotch is running; nothing to show." : lines.joined(separator: "\n"))
@@ -188,6 +212,9 @@ case "setup":
     setupClaude(printOnly: a.flags.contains("print"), remove: a.flags.contains("remove"))
 case "help", "-h", "--help":
     print(usage)
+    print("For scripts and AI agents (every one takes --json; `notch mcp` serves them over MCP):\n")
+    forwardToApp(["help"])
 default:
-    fail("unknown command '\(command)'. Try `notch help`.")
+    // Unknown here: the app's agent commands answer, with a JSON error under --json.
+    forwardToApp(argv)
 }

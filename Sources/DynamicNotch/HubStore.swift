@@ -95,7 +95,8 @@ final class HubStore: ObservableObject {
         }
     }
 
-    private func apply(_ msg: ActivityMessage) {
+    /// Also how agent commands (Agent/AgentCommands.swift) post activities and notices.
+    func apply(_ msg: ActivityMessage) {
         let now = Date()
         if let i = activities.firstIndex(where: { $0.id == msg.id }) {
             var a = activities[i]

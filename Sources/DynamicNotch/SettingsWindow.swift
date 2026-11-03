@@ -103,8 +103,8 @@ final class SettingsTabs: NSTabViewController {
     /// The content size the user last dragged the window to (per Mac, not synced), or nil
     /// while they haven't: then each pane opens at its own height.
     static var chosenSize: NSSize? {
-        get { UserDefaults.standard.string(forKey: "settings.contentSize").map(NSSizeFromString) }
-        set { UserDefaults.standard.set(newValue.map(NSStringFromSize), forKey: "settings.contentSize") }
+        get { AppDefaults.store.string(forKey: "settings.contentSize").map(NSSizeFromString) }
+        set { AppDefaults.store.set(newValue.map(NSStringFromSize), forKey: "settings.contentSize") }
     }
 
     /// Sizes a pane before it's shown (re-measured each time, as panes change), no taller

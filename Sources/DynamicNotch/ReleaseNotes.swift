@@ -109,15 +109,15 @@ final class WhatsNew {
     static let shownInPromptKey = "whatsNew.shownInPrompt"
 
     private init() {
-        if let version = UserDefaults.standard.string(forKey: Self.pendingVersionKey), version == AppInfo.version {
-            pending = (UserDefaults.standard.string(forKey: Self.pendingFromKey) ?? "", version)
+        if let version = AppDefaults.store.string(forKey: Self.pendingVersionKey), version == AppInfo.version {
+            pending = (AppDefaults.store.string(forKey: Self.pendingFromKey) ?? "", version)
         }
     }
 
     /// At launch: if this is a newer version than last time, keep its notes for Settings.
     /// - Parameter autoInstalledFrom: the version an automatic update replaced, if it was one.
     func noteLaunch(newInstall: Bool, autoInstalledFrom: String?) {
-        let store = UserDefaults.standard
+        let store = AppDefaults.store
         let last = store.string(forKey: Self.lastLaunchedKey)
         store.set(AppInfo.version, forKey: Self.lastLaunchedKey)
         guard !newInstall else { return }
@@ -133,8 +133,8 @@ final class WhatsNew {
     func dismiss(forGood: Bool) {
         guard forGood else { return }
         pending = nil
-        UserDefaults.standard.removeObject(forKey: Self.pendingFromKey)
-        UserDefaults.standard.removeObject(forKey: Self.pendingVersionKey)
+        AppDefaults.store.removeObject(forKey: Self.pendingFromKey)
+        AppDefaults.store.removeObject(forKey: Self.pendingVersionKey)
     }
 
     /// Shows the notes over `window` as a sheet: the pending ones, or this version's when the

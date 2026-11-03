@@ -1,6 +1,11 @@
 import AppKit
 import NotchKit
 
+// `notch <command>` for agents (`notch status`, `notch mcp`…; the notch tool hands them to this
+// binary): run it against the running app and exit, without starting a second copy.
+// See Agent/AgentCLI.swift.
+if let code = AgentCLI.runIfRequested() { exit(code) }
+
 /// Quits DynamicNotch without asking: for quitting itself (installing an update, a second
 /// copy stepping aside, ending a test).
 @MainActor
@@ -17,8 +22,9 @@ enum QuitConfirmation {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let store = HubStore()
-    private let media = NowPlaying()
-    private let volume = VolumeController()
+    // Made on first use, so a test copy of the agent CLI never starts the music or volume observers.
+    private lazy var media = NowPlaying()
+    private lazy var volume = VolumeController()
     private var server: SocketServer?
     private var notch: NotchScreens?
     private var statusItem: NSStatusItem?
@@ -41,6 +47,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.mainMenu = mainMenu
         AppAppearance.start()
         #if DEBUG
+        // A test run of the agent CLI (APP_STORE): its own settings (AppDefaults) and the agent
+        // socket. Nothing else starts: no hub socket, notch, music or volume observers, sync,
+        // menu bar item, ToolHUD menu hub or updater.
+        if AgentSocket.isTestRun {
+            AgentApp.store = store
+            AgentSocket.listen { AgentRouter.handle($0) }
+            return
+        }
         // A test run shares the installed app's settings, so it checks Help and stops
         // before the socket, the notch or sync starts.
         if let snapshot = ProcessInfo.processInfo.environment["DYNAMICNOTCH_DEBUG_HELP_TEST"] {
@@ -72,14 +86,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let notch = NotchScreens(store: store, media: media, volume: volume)
         self.notch = notch
+        // `notch status`, `notch notice show`… and the MCP server talk to the app through this.
+        AgentApp.store = store
+        AgentApp.notch = notch
+        AgentApp.media = media
+        AgentApp.volume = volume
+        AgentSocket.listen { AgentRouter.handle($0) }
         notch.onOpenSettings = { [weak self] in self?.showSettings() }
         SettingsWindow.shared.showNotch = { [weak notch] in notch?.show() }
 
         // Set at the end of the first launch, so its absence means a brand-new install.
-        let newInstall = !UserDefaults.standard.bool(forKey: "launchedBefore")
+        let newInstall = !AppDefaults.store.bool(forKey: "launchedBefore")
         if newInstall { SettingsSync.shared.adoptOnNewInstall() }
         SettingsSync.shared.start()
-        UserDefaults.standard.set(true, forKey: "launchedBefore")
+        AppDefaults.store.set(true, forKey: "launchedBefore")
 
         setUpStatusItem()
         // ToolHUD can take the menu into its own while it runs.
